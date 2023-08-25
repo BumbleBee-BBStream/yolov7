@@ -44,9 +44,9 @@ def sep_train_val(file):
     name_extention = file.split('.')[-1]
     if probo < 0: #trian=101 val=0 trian/test=75
         if name_extention == 'jpg':
-            shutil.copy(file,train_img_dst_path)
+            shutil.copy(file,val_img_dst_path)
         if name_extention == 'xml':
-            shutil.copy(file,train_xml_dst_path)      
+            shutil.copy(file,val_xml_dst_path)      
     else:
         if name_extention == 'jpg':
             shutil.copy(file,val_img_dst_path)
@@ -56,8 +56,8 @@ def sep_train_val(file):
 
 def convert_annotation(image_id):
     if probo < 0:  #trian=101 val=0 trian/test=75
-        in_file = open('/home/workspace/BatteryDetect/DataCOCO/xmls/train2017/%s.xml'%image_id)
-        out_file = open('/home/workspace/BatteryDetect/DataCOCO/labels/train2017/%s.txt'%image_id, 'w')
+        in_file = open('/home/workspace/BatteryDataSet/DataCOCO/xmls/train2017/%s.xml'%image_id)
+        out_file = open('/home/workspace/BatteryDataSet/DataCOCO/labels/train2017/%s.txt'%image_id, 'w')
 
         
         tree=ET.parse(in_file)
@@ -80,8 +80,8 @@ def convert_annotation(image_id):
         out_file.close()
 
     else:				
-        in_file = open('/home/workspace/BatteryDetect/DataCOCO/xmls/val2017/%s.xml'%image_id)
-        out_file = open('/home/workspace/BatteryDetect/DataCOCO/labels/val2017/%s.txt'%image_id, 'w')
+        in_file = open('/home/workspace/BatteryDataSet/DataCOCO/xmls/val2017/%s.xml'%image_id)
+        out_file = open('/home/workspace/BatteryDataSet/DataCOCO/labels/val2017/%s.txt'%image_id, 'w')
 
 
         tree=ET.parse(in_file)
@@ -110,7 +110,7 @@ wd = '/home/workspace/'
 print(wd)
 
 # work_space_dir = os.path.join(wd)
-work_space_dir = os.path.join(wd, 'BatteryDetect/DataCOCO/')
+work_space_dir = os.path.join(wd, 'BatteryDataSet/DataCOCO/')
 if not os.path.isdir(work_space_dir):
     os.makedirs(work_space_dir)
 image_dir = os.path.join(work_space_dir, "val_images/")
@@ -130,7 +130,7 @@ val_file.close()
 # labels_train = '/home/workspace/BatteryDetect/DataCOCO/labels/train2017/'
 # if not os.path.isdir(labels_train):
 #         os.makedirs(labels_train)
-labels_val = '/home/workspace/BatteryDetect/DataCOCO/labels/val2017/'
+labels_val = '/home/workspace/BatteryDataSet/DataCOCO/labels/val2017/'
 if not os.path.isdir(labels_val):
         os.makedirs(labels_val)
 
@@ -141,10 +141,10 @@ if not os.path.isdir(labels_val):
 # if not os.path.isdir(train_xml_dst_path):
 #     os.makedirs(train_xml_dst_path)
 
-val_img_dst_path = '/home/workspace/BatteryDetect/DataCOCO/images/val2017/'
+val_img_dst_path = '/home/workspace/BatteryDataSet/DataCOCO/images/val2017/'
 if not os.path.isdir(val_img_dst_path):
     os.makedirs(val_img_dst_path)
-val_xml_dst_path = '/home/workspace/BatteryDetect/DataCOCO/xmls/val2017/'
+val_xml_dst_path = '/home/workspace/BatteryDataSet/DataCOCO/xmls/val2017/'
 if not os.path.isdir(val_xml_dst_path):
     os.makedirs(val_xml_dst_path)
 

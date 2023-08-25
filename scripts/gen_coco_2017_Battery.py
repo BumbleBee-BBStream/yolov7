@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-=======
+
 # Copyright from Sharebee.cn Inc All rights Reserved.
 # Author: Samuel
 # Date: April 2, 2023
@@ -15,7 +14,8 @@ import matplotlib
 import shutil 
 
 #classes = ["Scratch", "PitCrushed", "Crushed", "RustCurrosion", "Wound"]
-classes = ["defect"]
+#classes = ["defect"]
+classes = ["prototype"]
 # object = "battery"
 
 def clear_hidden_files(path):
@@ -58,8 +58,8 @@ def sep_train_val(file):
 
 def convert_annotation(image_id):
     if probo < 75:
-        in_file = open('/home/workspace/BatteryDetect/DataCOCO/xmls/train2017/%s.xml'%image_id)
-        out_file = open('/home/workspace/BatteryDetect/DataCOCO/labels/train2017/%s.txt'%image_id, 'w')
+        in_file = open('/home/workspace/BatteryDataSet/DataCOCO/xmls/train2017/%s.xml'%image_id)
+        out_file = open('/home/workspace/BatteryDataSet/DataCOCO/labels/train2017/%s.txt'%image_id, 'w')
 
         
         tree=ET.parse(in_file)
@@ -82,8 +82,8 @@ def convert_annotation(image_id):
         out_file.close()
 
     else:				
-        in_file = open('/home/workspace/BatteryDetect/DataCOCO/xmls/val2017/%s.xml'%image_id)
-        out_file = open('/home/workspace/BatteryDetect/DataCOCO/labels/val2017/%s.txt'%image_id, 'w')
+        in_file = open('/home/workspace/BatteryDataSet/DataCOCO/xmls/val2017/%s.xml'%image_id)
+        out_file = open('/home/workspace/BatteryDataSet/DataCOCO/labels/val2017/%s.txt'%image_id, 'w')
 
 
         tree=ET.parse(in_file)
@@ -108,18 +108,21 @@ def convert_annotation(image_id):
 
 # Check path and input parameters
 #wd = os.getcwd()
-wd = '/home/workspace/'
-print(wd)
+# wd = '/home/workspace/'
+# print(wd)
 
 # work_space_dir = os.path.join(wd)
-work_space_dir = os.path.join(wd, 'BatteryDetection/')
+# work_space_dir = os.path.join(wd, 'BatteryDataSet/')
+work_space_dir = "/home/workspace/BatteryDataSet/DataCOCO/"
 if not os.path.isdir(work_space_dir):
     os.makedirs(work_space_dir)
-annotation_dir = os.path.join(work_space_dir, "Data_xml/small_defect_JinChuan_V6/small_14_defect_V4V5_aug_xml/")
+#annotation_dir = os.path.join(work_space_dir, "Data_xml/small_defect_JinChuan_V6/small_14_defect_V4V5_aug_xml/")
+annotation_dir = "/home/workspace/BatteryDataSet/Data_xml/small_14_V6.2_prototype_xml/"
 if not os.path.exists(annotation_dir):
     os.makedirs(annotation_dir)
 clear_hidden_files(annotation_dir)
-image_dir = os.path.join(work_space_dir, "Data_xml/small_defect_JinChuan_V6/small_14_defect_V4V5_aug_jpg/")
+#mage_dir = os.path.join(work_space_dir, "Data_xml/small_defect_JinChuan_V6/small_14_defect_V4V5_aug_jpg/")
+image_dir = "/home/workspace/BatteryDataSet/Data_xml/small_14_V6.2_prototype/"
 if not os.path.exists(image_dir):
     os.makedirs(image_dir)
 clear_hidden_files(image_dir)
@@ -130,25 +133,24 @@ train_file.close()
 val_file.close()
 
 
-labels_train = '/home/workspace/BatteryDetect/DataCOCO/labels/train2017/'
+labels_train = '/home/workspace/BatteryDataSet/DataCOCO/labels/train2017/'
 if not os.path.isdir(labels_train):
         os.makedirs(labels_train)
-labels_val = '/home/workspace/BatteryDetect/DataCOCO/labels/val2017/'
+labels_val = '/home/workspace/BatteryDataSet/DataCOCO/labels/val2017/'
 if not os.path.isdir(labels_val):
         os.makedirs(labels_val)
 
-train_img_dst_path = "/home/workspace/BatteryDetect/DataCOCO/images/train2017/"
+train_img_dst_path = "/home/workspace/BatteryDataSet/DataCOCO/images/train2017/"
 if not os.path.isdir(train_img_dst_path):
     os.makedirs(train_img_dst_path)
-train_xml_dst_path = "/home/workspace/BatteryDetect/DataCOCO/xmls/train2017/"
+train_xml_dst_path = "/home/workspace/BatteryDataSet/DataCOCO/xmls/train2017/"
 if not os.path.isdir(train_xml_dst_path):
     os.makedirs(train_xml_dst_path)
 
-val_img_dst_path = '/home/workspace/BatteryDetect/DataCOCO/images/val2017/'
+val_img_dst_path = '/home/workspace/BatteryDataSet/DataCOCO/images/val2017/'
 if not os.path.isdir(val_img_dst_path):
     os.makedirs(val_img_dst_path)
-val_xml_dst_path = '/home/workspace/BatteryDetect/DataCOCO/xmls/val2017/'
-
+val_xml_dst_path = '/home/workspace/BatteryDataSet/DataCOCO/xmls/val2017/'
 if not os.path.isdir(val_xml_dst_path):
     os.makedirs(val_xml_dst_path)
 
@@ -188,6 +190,3 @@ for i in range(0, len(list)):
             convert_annotation(nameWithoutExtention)
 train_file.close()
 val_file.close()
-
-
->>>>>>> 8898f04483791c31bea65e0cc6e1bda6f693218b
