@@ -56,8 +56,8 @@ def sep_train_val(file):
 
 def convert_annotation(image_id):
     if probo < 101:  #trian=101 test=0 trian/test=75
-        in_file = open('/home/workspace/BatteryDetect/DataCOCO/xmls/train2017/%s.xml'%image_id)
-        out_file = open('/home/workspace/BatteryDetect/DataCOCO/labels/train2017/%s.txt'%image_id, 'w')
+        in_file = open('/home/workspace/BatteryDataSet/DataCOCO/xmls/train2017/%s.xml'%image_id)
+        out_file = open('/home/workspace/BatteryDataSet/DataCOCO/labels/train2017/%s.txt'%image_id, 'w')
 
         
         tree=ET.parse(in_file)
@@ -110,7 +110,7 @@ wd = '/home/workspace/'
 print(wd)
 
 # work_space_dir = os.path.join(wd)
-work_space_dir = os.path.join(wd, 'BatteryDetect/DataCOCO/')
+work_space_dir = os.path.join(wd, 'BatteryDataSet/DataCOCO/')
 if not os.path.isdir(work_space_dir):
     os.makedirs(work_space_dir)
 image_dir = os.path.join(work_space_dir, "train_images/")
@@ -127,17 +127,17 @@ train_file = open(os.path.join(work_space_dir, "train2017.txt"), 'w')
 train_file.close()
 # val_file.close()
 
-labels_train = '/home/workspace/BatteryDetect/DataCOCO/labels/train2017/'
+labels_train = '/home/workspace/BatteryDataSet/DataCOCO/labels/train2017/'
 if not os.path.isdir(labels_train):
         os.makedirs(labels_train)
 # labels_val = '/home/workspace/BatteryDetect/DataCOCO/labels/val2017/'
 # if not os.path.isdir(labels_val):
 #         os.makedirs(labels_val)
 
-train_img_dst_path = "/home/workspace/BatteryDetect/DataCOCO/images/train2017/"
+train_img_dst_path = "/home/workspace/BatteryDataSet/DataCOCO/images/train2017/"
 if not os.path.isdir(train_img_dst_path):
     os.makedirs(train_img_dst_path)
-train_xml_dst_path = "/home/workspace/BatteryDetect/DataCOCO/xmls/train2017/"
+train_xml_dst_path = "/home/workspace/BatteryDataSet/DataCOCO/xmls/train2017/"
 if not os.path.isdir(train_xml_dst_path):
     os.makedirs(train_xml_dst_path)
 
