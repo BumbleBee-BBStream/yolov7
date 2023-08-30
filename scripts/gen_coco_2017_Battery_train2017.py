@@ -110,19 +110,19 @@ wd = '/home/workspace/'
 print(wd)
 
 # work_space_dir = os.path.join(wd)
-work_space_dir = os.path.join(wd, 'BatteryDataSet/DataCOCO/')
+work_space_dir = os.path.join(wd, 'BatteryDataSet/Data_xml/small_defect_JinChuan_V6.3/')
 if not os.path.isdir(work_space_dir):
     os.makedirs(work_space_dir)
-image_dir = os.path.join(work_space_dir, "train_images/")
+image_dir = os.path.join(work_space_dir, "v6.3.1_img/")
 if not os.path.exists(image_dir):
     os.makedirs(image_dir)
 clear_hidden_files(image_dir)
-annotation_dir = os.path.join(work_space_dir, "train_xmls/")
+annotation_dir = os.path.join(work_space_dir, "v6.3.1_xml/")
 if not os.path.exists(annotation_dir):
     os.makedirs(annotation_dir)
 clear_hidden_files(annotation_dir)
 
-train_file = open(os.path.join(work_space_dir, "train2017.txt"), 'w')
+train_file = open(os.path.join(wd, "BatteryDataSet/DataCOCO/train2017.txt"), 'w')
 # val_file = open(os.path.join(work_space_dir, "val2017.txt"), 'w')
 train_file.close()
 # val_file.close()
@@ -149,7 +149,7 @@ if not os.path.isdir(train_xml_dst_path):
 #     os.makedirs(val_xml_dst_path)
 
 
-train_file = open(os.path.join(work_space_dir, "train2017.txt"), 'a')
+train_file = open(os.path.join(wd, "BatteryDataSet/DataCOCO/train2017.txt"), 'a')
 # val_file = open(os.path.join(work_space_dir, "val2017.txt"), 'a')
 	
 list = os.listdir(image_dir) # list image files
