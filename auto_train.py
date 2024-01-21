@@ -8,6 +8,9 @@ import zipfile
 import xml.etree.ElementTree as ET
 import random
 import subprocess
+import sys
+import time
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -22,7 +25,7 @@ yolov7_device = 0
 yolov7_batch_size = 32
 yolov7_img_size = 640
 yolov7_weights = "/home/workspace/yolo_weights/yolov7-tiny.pt"  # weights for the yolov7 model
-yolov7_name = project_version
+yolov7_name = project_version + '_' + ''.join(str(random.randint(0, 9)) for _ in range(6))  # append a random 6 digit number to avoid name duplication
 yolov7_hyper = "data/hyp.scratch.tiny.yaml"  # hyper parameters for the yolov7 model
 yolov7_iou_thres = 0.65  # parameter for ONNX conversion
 yolov7_conf_thres = 0.35
@@ -36,11 +39,31 @@ DOWNLOAD_URI = DATASRC_HOST + "TaskManage/TaskData/ExportData"  # URI endpoint f
 ## -- derived variables (do not change manually) --
 project_raw_data_path = os.path.join(project_path, "Data_xml", project_version)
 project_data_coco_path = os.path.join(project_path, "DataCOCO", project_version)
-trained_best_model_path = os.path.join(YOLOV7_PATH, "runs", "train", project_version, "weights", "best.pt")
+train_run_path = os.path.join(YOLOV7_PATH, "runs", "train", yolov7_name)
+train_result_path = os.path.join(train_run_path, "results.txt")
+trained_best_model_path = os.path.join(train_run_path, "weights", "best.pt")
 
 
 ## -- helper functions --
 def download_file(url, filename):
+    """
+    Downloads a file from a given URL and saves it to a specified local filename.
+
+    The function makes an HTTP GET request to the provided URL and streams the
+    content to the local file system. The content is written in chunks to handle
+    large files efficiently. It also logs the progress of the download, displaying
+    the percentage of the file that has been downloaded.
+
+    Parameters:
+    url (str): The URL from which to download the file.
+    filename (str): The local path where the downloaded file will be saved.
+
+    This function uses the 'requests' library to perform the HTTP request and
+    stream the content. The file is opened in binary write mode ('wb'), and the
+    content is written in chunks of 1 Kibibyte. The progress of the download is
+    calculated based on the total content length obtained from the HTTP headers and
+    the amount of data downloaded. This progress is logged to the console.
+    """
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
         total_length = int(r.headers.get('content-length', 0))
@@ -84,6 +107,25 @@ def unzip_and_organize(zip_file):
 
 
 def extract_classes(xml_dir):
+    """
+    Extracts and returns a sorted list of unique class names from XML files in a specified directory.
+
+    This function iterates through all XML files in the given directory. It parses each XML file
+    to extract the 'name' tags within 'object' tags, which typically represent class names in
+    object detection datasets. The function collects all unique class names found across all
+    XML files and returns them as a sorted list. This is useful for preparing class information
+    for machine learning tasks, particularly for object detection models.
+
+    Parameters:
+    xml_dir (str): The directory containing XML files with object annotations.
+
+    Returns:
+    list: A sorted list of unique class names found in the XML files.
+
+    The function uses the ElementTree XML API to parse XML files. It creates a set to store 
+    unique class names and then converts this set to a list which is sorted before returning.
+    This ensures that the class names are unique and are in a consistent order.
+    """
     classes = set()
     for xml_file in os.listdir(xml_dir):
         if xml_file.endswith('.xml'):
@@ -135,6 +177,30 @@ def create_cfg_yaml_file(input_yaml_path, output_yaml_path, classes):
 
 
 def parse_xml(file, class_map):
+    """
+    Parses an XML file to extract object bounding boxes and class information.
+
+    This function reads an XML file that contains annotations for objects in an image.
+    It extracts the bounding box coordinates for each annotated object and maps the 
+    object's class name to a class ID using the provided class_map. 
+    The bounding box coordinates are normalized by the dimensions of the image.
+
+    Parameters:
+    file (str): The path to the XML file containing annotations.
+    class_map (dict): A dictionary mapping class names (str) to class IDs (int).
+
+    Returns:
+    list of tuples: A list where each tuple represents an object's annotation.
+                    Each tuple contains:
+                    - class_id (int): The class ID of the object.
+                    - b (tuple of floats): The normalized bounding box of the object,
+                      represented as (xmin, xmax, ymin, ymax).
+
+    The function processes each 'object' node in the XML file, retrieves the class
+    name, maps it to its corresponding class ID, and extracts the bounding box
+    coordinates (xmin, xmax, ymin, ymax). These coordinates are normalized by the
+    width and height of the image, which are also extracted from the XML file.
+    """
     tree = ET.parse(file)
     root = tree.getroot()
     size = root.find('size')
@@ -157,6 +223,29 @@ def parse_xml(file, class_map):
 
 
 def write_labels(filename, boxes):
+    """
+    Writes the label information to a file in YOLO format.
+
+    This function takes the bounding box information for each object in an image 
+    and writes it to a specified file. The format written is specific to the YOLOv7 
+    model, which requires each line in the label file to contain class ID and normalized 
+    bounding box coordinates (center x, center y, width, height).
+
+    Parameters:
+    filename (str): The path of the file where the label data will be written.
+    boxes (list of tuples): A list where each tuple represents a detected object.
+        Each tuple contains:
+        - class_id (int): The class ID of the object.
+        - xmin (float): The x coordinate of the top-left corner of the bounding box.
+        - xmax (float): The x coordinate of the bottom-right corner of the bounding box.
+        - ymin (float): The y coordinate of the top-left corner of the bounding box.
+        - ymax (float): The y coordinate of the bottom-right corner of the bounding box.
+        Coordinates are normalized to the range [0, 1].
+
+    The function calculates the center coordinates (x_center, y_center) and the 
+    width and height of the bounding box by using xmin, xmax, ymin, and ymax. 
+    These values are then written to the file in the YOLO format.
+    """
     with open(filename, 'w') as f:
         for class_id, (xmin, xmax, ymin, ymax) in boxes:
             x_center = (xmin + xmax) / 2
@@ -167,6 +256,29 @@ def write_labels(filename, boxes):
 
 
 def split_and_write_labels(image_dir, annotation_dir, dirs, class_map):
+    """
+    Splits the dataset into training and validation sets and writes label files.
+
+    This function processes a dataset of images and their corresponding annotation
+    files, divides the dataset into training and validation subsets based on a 
+    predefined ratio, and writes the YOLO-formatted label files for each subset.
+    It also creates text files listing the images in each subset.
+
+    Parameters:
+    image_dir (str): Directory containing the image files.
+    annotation_dir (str): Directory containing the corresponding XML annotation files.
+    dirs (dict): A dictionary containing paths to output directories for training 
+                 and validation images and labels.
+    class_map (dict): A mapping of class names to their respective integer IDs.
+
+    The function first shuffles the list of images to ensure random distribution 
+    into training and validation sets. It then iterates over each image, checks 
+    for a corresponding annotation file, and if found, parses the XML file to get 
+    bounding box information. This information is converted to YOLO format and 
+    written to label files in the respective training or validation directories.
+    Additionally, paths to images are written to 'train.txt' and 'val.txt' files
+    for use during model training.
+    """
     logging.info("Splitting dataset and writing label files...")
     split_ratio = training_data_percentage
     images = [f for f in os.listdir(image_dir) if f.endswith('.jpg')]
@@ -194,6 +306,15 @@ def split_and_write_labels(image_dir, annotation_dir, dirs, class_map):
                 shutil.copy(image_file, output_image_dir)
                 write_labels(label_file, boxes)
 
+
+def count_lines(filename):
+    # count number of lines in a file.
+    try:
+        with open(filename, 'r') as file:
+            line_count = sum(1 for line in file)
+        return line_count
+    except FileNotFoundError:
+        return -1
 
 ## -- main functions --
 def parse_arguments():
@@ -284,8 +405,8 @@ def process_dataset():
 
 
 def run_yolov7_training():
-    # TODO: Handle the scenario where wandb uploading thread does not finish properly.
     logging.info("Starting YOLOv7 training...")
+    # Command construction
     command = [
         'python3', 'train.py',
         '--workers', str(yolov7_workers),
@@ -301,8 +422,7 @@ def run_yolov7_training():
     ]
     try:
         logging.info(f"Executing {command}")
-        subprocess.run(command, check=True, cwd=YOLOV7_PATH)
-        logging.info("YOLOv7 training completed successfully.")
+        subprocess.Popen(command, cwd=YOLOV7_PATH)
     except subprocess.CalledProcessError as e:
         logging.info(f"Error during YOLOv7 training: {e}")
 
@@ -338,7 +458,14 @@ if __name__ == "__main__":
     download_and_extract_dataset()
     process_dataset()
     run_yolov7_training()
-    run_yolov7_convert()
-
-
-
+    # Now instead of waiting for run_yolov7_training() to finish, use a pooling mechanism to check if training has finished.
+    # Why do we need to do that? Because at the end of run_yolov7_training, wandb opens thread to upload result to Google which might fail due to network error.
+    polling_interval = 5
+    while True:
+        # we determine training finished by checking results.txt & making sure best.pt model file exists
+        if os.path.isfile(trained_best_model_path) and count_lines(train_result_path) == yolov7_epochs:
+            logging.info(f"File found: {trained_best_model_path}.")
+            run_yolov7_convert()
+            sys.exit()
+        time.sleep(polling_interval)
+    
