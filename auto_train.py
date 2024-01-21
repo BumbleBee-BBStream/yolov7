@@ -1,4 +1,5 @@
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import requests
 import os
@@ -10,14 +11,15 @@ import random
 import subprocess
 import sys
 import time
+import threading
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 ## -- variables --
-dataset_id = "667430116996943872"  # dataset id from http://www.deepvision-tech.cn:8090/Home/Index 
+dataset_ids = ["667430116996943872"]  # dataset id from http://www.deepvision-tech.cn:8090/Home/Index 
 project_path = "/home/workspace/BatteryDataSet"
-project_version = "14_defect_5_JiinChuan_auto_script_test"
+project_version = "14_defect_5_JinChuan_auto_script_test"
 training_data_percentage = 0.75  # how much % of data is used for training, with the rest as validation
 yolov7_epochs = 100
 yolov7_workers = 4
@@ -25,9 +27,9 @@ yolov7_device = 0
 yolov7_batch_size = 32
 yolov7_img_size = 640
 yolov7_weights = "/home/workspace/yolo_weights/yolov7-tiny.pt"  # weights for the yolov7 model
-yolov7_name = project_version + '_' + ''.join(str(random.randint(0, 9)) for _ in range(6))  # append a random 6 digit number to avoid name duplication
 yolov7_hyper = "data/hyp.scratch.tiny.yaml"  # hyper parameters for the yolov7 model
-yolov7_iou_thres = 0.65  # parameter for ONNX conversion
+# parameters for ONNX conversion
+yolov7_iou_thres = 0.65  
 yolov7_conf_thres = 0.35
 yolov7_topk_all = 100
 
@@ -36,16 +38,11 @@ YOLOV7_PATH = "/home/workspace/yolov7"  # yolov7 path, this is also the path und
 DATASRC_HOST = "http://www.deepvision-tech.cn:8090/"  # labeling server host address
 DOWNLOAD_URI = DATASRC_HOST + "TaskManage/TaskData/ExportData"  # URI endpoint for dataset download
 
-## -- derived variables (do not change manually) --
-project_raw_data_path = os.path.join(project_path, "Data_xml", project_version)
-project_data_coco_path = os.path.join(project_path, "DataCOCO", project_version)
-train_run_path = os.path.join(YOLOV7_PATH, "runs", "train", yolov7_name)
-train_result_path = os.path.join(train_run_path, "results.txt")
-trained_best_model_path = os.path.join(train_run_path, "weights", "best.pt")
-
 
 ## -- helper functions --
-def download_file(url, filename):
+download_progress = {}
+lock = threading.Lock()
+def download_file(url, filename, id):
     """
     Downloads a file from a given URL and saves it to a specified local filename.
 
@@ -57,6 +54,7 @@ def download_file(url, filename):
     Parameters:
     url (str): The URL from which to download the file.
     filename (str): The local path where the downloaded file will be saved.
+    id (str): The dataset id for tracking purpose.
 
     This function uses the 'requests' library to perform the HTTP request and
     stream the content. The file is opened in binary write mode ('wb'), and the
@@ -64,13 +62,12 @@ def download_file(url, filename):
     calculated based on the total content length obtained from the HTTP headers and
     the amount of data downloaded. This progress is logged to the console.
     """
+    global download_progress
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
         total_length = int(r.headers.get('content-length', 0))
         chunk_size = 1024  # 1 Kibibyte
         downloaded = 0
-
-        logging.info(f"Downloading {filename}")
 
         with open(filename, 'wb') as f:
             for chunk in r.iter_content(chunk_size=chunk_size):
@@ -78,18 +75,26 @@ def download_file(url, filename):
                     f.write(chunk)
                     downloaded += len(chunk)
                     percentage = 100 * downloaded / total_length
-                    print(f"\rProgress: {percentage:.2f}%", end='', flush=True)
+                    # Update shared progress tracker
+                    with lock:
+                        download_progress[id] = percentage
 
-        logging.info("\nDownload completed")
+
+def print_progress():
+    # print download progress for all datasets
+    global download_progress
+    download_progress = {id: 0 for id in dataset_ids}  # initialize progress to 0 for all datasets
+    while any(progress < 100 for progress in download_progress.values()):
+        with lock:
+            progress_str = ', '.join(f"ID {id}: {progress:.2f}%" for id, progress in download_progress.items())
+        print(f"\r{progress_str}", end='', flush=True)
+        time.sleep(0.5)  # Update every half second
+
 
 def unzip_and_organize(zip_file):
     # Create directories for images and xmls if they don't exist
     images_path = os.path.join(project_raw_data_path, 'images')
     xmls_path = os.path.join(project_raw_data_path, 'xmls')
-    if not os.path.exists(images_path):
-        os.makedirs(images_path)
-    if not os.path.exists(xmls_path):
-        os.makedirs(xmls_path)
 
     # Unzipping the file
     with zipfile.ZipFile(zip_file, 'r') as zip_ref:
@@ -307,6 +312,43 @@ def split_and_write_labels(image_dir, annotation_dir, dirs, class_map):
                 write_labels(label_file, boxes)
 
 
+class DownloadError(Exception):
+    """Custom exception class for download errors."""
+    pass
+
+
+def download_and_extract_dataset(id):
+    """
+    Downloads and extracts a dataset given its ID.
+
+    This function sends a POST request to a server to obtain the download URL for a dataset
+    identified by the given ID. It then downloads the dataset from the URL and extracts it 
+    to a specified directory. If the POST request fails or the response does not contain 
+    the expected data, a DownloadError exception is raised.
+
+    Parameters:
+    id (str): The unique identifier for the dataset to be downloaded.
+
+    Raises:
+    DownloadError: If the POST request fails or the 'Data' field is not found in the response.
+    """
+    payload = {"id": id, "type": 1}
+    response = requests.post(DOWNLOAD_URI, data=payload)
+    if response.status_code == 200:
+        response_json = response.json()
+        file_url_suffix = response_json.get("Data")
+        if file_url_suffix:
+            file_url = DATASRC_HOST + file_url_suffix
+            file_name = file_url_suffix.split('/')[-1]
+            file_path = os.path.join(project_raw_data_path, file_name)
+            download_file(file_url, file_path, id)
+            unzip_and_organize(file_path)
+        else:
+            raise DownloadError(f"Data field not found in the response for {id}. Check {DATASRC_HOST}.")
+    else:
+        raise DownloadError(f"POST request failed for {id}. Check {DATASRC_HOST}.")
+
+
 def count_lines(filename):
     # count number of lines in a file.
     try:
@@ -318,14 +360,14 @@ def count_lines(filename):
 
 ## -- main functions --
 def parse_arguments():
-    global dataset_id, project_path, project_version, training_data_percentage
-    global yolov7_epochs, yolov7_workers, yolov7_device, yolov7_batch_size, yolov7_img_size, yolov7_weights, yolov7_name, yolov7_hyper
+    global dataset_ids, project_path, project_version, training_data_percentage
+    global yolov7_epochs, yolov7_workers, yolov7_device, yolov7_batch_size, yolov7_img_size, yolov7_weights, yolov7_hyper
     global yolov7_topk_all, yolov7_iou_thres, yolov7_conf_thres
     parser = argparse.ArgumentParser(description='Run YOLOv7 Training Script with Custom Dataset')
-    parser.add_argument('--dataset_id', type=str, default=dataset_id, help='Dataset ID from the data source')
-    parser.add_argument('--project_path', type=str, default=project_path, help='Base path for the project')
-    parser.add_argument('--project_version', type=str, default=project_version, help='Version identifier for the dataset')
-    parser.add_argument('--training_data_percentage', type=float, default=training_data_percentage, help='Percentage of data used for training (remainder used for validation)')
+    parser.add_argument('--dataset-ids', type=str, nargs='+', default=dataset_ids, help='One or more Dataset IDs from the data source')
+    parser.add_argument('--project-path', type=str, default=project_path, help='Base path for the project')
+    parser.add_argument('--project-version', type=str, default=project_version, help='Version identifier for the dataset')
+    parser.add_argument('--training-data-percentage', type=float, default=training_data_percentage, help='Percentage of data used for training (remainder used for validation)')
     
     # Arguments for YOLOv7 training
     parser.add_argument('--epochs', type=int, default=yolov7_epochs, help='Number of training epochs')
@@ -334,7 +376,6 @@ def parse_arguments():
     parser.add_argument('--batch-size', type=int, default=yolov7_batch_size, help='Batch size for training')
     parser.add_argument('--img-size', type=int, default=yolov7_img_size, help='Image size for training (width and height)')
     parser.add_argument('--weights', type=str, default=yolov7_weights, help='Path to the weights file for YOLOv7')
-    parser.add_argument('--name', type=str, default=yolov7_name, help='Name for the training run')
     parser.add_argument('--hyp', type=str, default=yolov7_hyper, help='Path to the hyperparameter file')
 
     # Arguments for ONNX conversion
@@ -344,7 +385,7 @@ def parse_arguments():
 
     opt = parser.parse_args()
 
-    dataset_id = opt.dataset_id
+    dataset_ids = opt.dataset_ids
     project_path = opt.project_path
     project_version = opt.project_version
     training_data_percentage = opt.training_data_percentage
@@ -354,7 +395,6 @@ def parse_arguments():
     yolov7_batch_size = opt.batch_size
     yolov7_img_size = opt.img_size
     yolov7_weights = opt.weights
-    yolov7_name = opt.name
     yolov7_hyper = opt.hyp
     yolov7_topk_all = opt.topk_all
     yolov7_iou_thres = opt.iou_thres
@@ -362,33 +402,59 @@ def parse_arguments():
 
 
 
-def setup_project_directory():
+def setup_project_directory_and_derived_variables():
+    # we reset these variables here according to user input parameters
+    global project_raw_data_path, project_data_coco_path, train_run_path, train_result_path, trained_best_model_path, yolov7_name
+    project_raw_data_path = os.path.join(project_path, "Data_xml", project_version)
+    project_data_coco_path = os.path.join(project_path, "DataCOCO", project_version)
+    yolov7_name = project_version + '_' + ''.join(str(random.randint(0, 9)) for _ in range(6))  # append a random 6 digit number to avoid name duplication
+    train_run_path = os.path.join(YOLOV7_PATH, "runs", "train", yolov7_name)
+    train_result_path = os.path.join(train_run_path, "results.txt")
+    trained_best_model_path = os.path.join(train_run_path, "weights", "best.pt")
+
     if os.path.exists(project_raw_data_path):
         shutil.rmtree(project_raw_data_path)
     os.makedirs(project_raw_data_path)
     logging.info(f"Raw data will be stored at {project_raw_data_path}.")
+    images_path = os.path.join(project_raw_data_path, 'images')
+    xmls_path = os.path.join(project_raw_data_path, 'xmls')
+    os.makedirs(images_path)
+    os.makedirs(xmls_path)
     if os.path.exists(project_data_coco_path):
         shutil.rmtree(project_data_coco_path)
     os.makedirs(project_data_coco_path)
     logging.info(f"Processed data for Yolov7 will be stored at {project_data_coco_path}.")
 
 
-def download_and_extract_dataset():
-    payload = {"id": dataset_id, "type": 1}
-    response = requests.post(DOWNLOAD_URI, data=payload)
-    if response.status_code == 200:
-        response_json = response.json()
-        file_url_suffix = response_json.get("Data")
-        if file_url_suffix:
-            file_url = DATASRC_HOST + file_url_suffix
-            file_name = file_url_suffix.split('/')[-1]
-            file_path = os.path.join(project_raw_data_path, file_name)
-            download_file(file_url, file_path)
-            unzip_and_organize(file_path)
-        else:
-            logging.error(f"Data field not found in the response. Check {DATASRC_HOST}.")
-    else:
-        logging.error(f"POST request failed. Check {DATASRC_HOST}.")
+
+def download_and_extract_datasets():
+    """
+    Downloads and extracts multiple datasets in parallel using their IDs.
+
+    This function initiates parallel download and extraction tasks for a list of dataset IDs.
+    It uses ThreadPoolExecutor to manage concurrent tasks. If any of the downloads fail, 
+    the function logs an error and stops the execution of the program.
+
+    It will wait for all tasks to complete before proceeding.
+
+    Raises:
+    SystemExit: If any of the dataset downloads fail, causing the program to exit.
+    """
+    logging.info(f"Downloading datasets.")
+    # Start the progress printing thread
+    progress_thread = threading.Thread(target=print_progress)
+    progress_thread.start()
+    with ThreadPoolExecutor() as executor:
+        futures = {executor.submit(download_and_extract_dataset, dataset_id): dataset_id for dataset_id in dataset_ids}
+        for future in as_completed(futures):  # wait for all futures to complete
+            try:
+                future.result()
+            except DownloadError as e:
+                logging.error(e)
+                sys.exit(1)
+
+    progress_thread.join()
+    print()  # print a newline character to ensure that the next log will not appear on the same line
 
 
 def process_dataset():
@@ -454,8 +520,8 @@ def run_yolov7_convert():
 
 if __name__ == "__main__":
     parse_arguments()
-    setup_project_directory()
-    download_and_extract_dataset()
+    setup_project_directory_and_derived_variables()
+    download_and_extract_datasets()
     process_dataset()
     run_yolov7_training()
     # Now instead of waiting for run_yolov7_training() to finish, use a pooling mechanism to check if training has finished.
@@ -466,6 +532,6 @@ if __name__ == "__main__":
         if os.path.isfile(trained_best_model_path) and count_lines(train_result_path) == yolov7_epochs:
             logging.info(f"File found: {trained_best_model_path}.")
             run_yolov7_convert()
-            sys.exit()
+            sys.exit(0)
         time.sleep(polling_interval)
     
