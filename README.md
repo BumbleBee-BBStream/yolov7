@@ -36,3 +36,7 @@ parser.add_argument('--topk-all', type=int, default=yolov7_topk_all, help='Top-K
 parser.add_argument('--iou-thres', type=float, default=yolov7_iou_thres, help='IoU threshold for NMS')
 parser.add_argument('--conf-thres', type=float, default=yolov7_conf_thres, help='Confidence threshold for predictions')
 ```
+
+## Where to get dataset_ids?
+<img width="1413" alt="image" src="https://github.com/BumbleBee-BBStream/yolov7/assets/708337/8bc06c9d-31f3-495c-a0c8-e3edcde5d0dc">
+
