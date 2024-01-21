@@ -1,5 +1,7 @@
 # YOLOv7 Model Training
 
+First ssh onto the GPU host (currently 122.9.48.13).
+
 Example command to invoke training
 
 ```shell
