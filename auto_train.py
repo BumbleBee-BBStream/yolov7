@@ -1,3 +1,56 @@
+"""
+This script automates the process of training a YOLOv7 object detection model with custom datasets. 
+It includes several stages specified in the main function: downloading datasets, preparing data, 
+training the model, and converting the trained model to the ONNX format. Therefore the best way to
+understand this script is to start from the main function, and dive into specific steps if needed.
+
+The script is designed to handle multiple datasets simultaneously and uses multithreading for 
+efficient data processing.
+
+Key functionalities include:
+
+1. Download and Extraction: Downloads datasets from the remote labeling server based on provided 
+   dataset IDs. The datasets are then extracted and organized into a specific directory structure.
+
+2. Data Preparation: Parses XML files to extract class information and bounding box details. 
+   The data is then split into training and validation sets. YOLO-format label files are created 
+   for each image in the dataset.
+
+3. YOLOv7 Training: Initiates the training of a YOLOv7 model using the prepared data. Training 
+   parameters such as epochs, batch size, and model configuration can be customized through 
+   command-line arguments.
+
+4. Model Conversion to ONNX: After training, the best-performing model is converted to the ONNX 
+   format for deployment and inference purposes. 
+
+5. Progress Tracking: The script provides real-time feedback on the progress of data downloading 
+   and model training.
+
+6. Error Handling: Includes custom exception handling for download errors and uses a safe exit 
+   strategy in case of failures during dataset download or model training.
+
+7. Command-Line Arguments: Allows customization of various parameters like dataset IDs, training 
+   settings, and paths through command-line arguments.
+
+8. Polling Mechanism: After training, the script continuously checks for the completion of the 
+   training process before proceeding to model conversion (to ONNX format).
+
+Usage:
+Run the script from the command line, optionally passing arguments to customize the training 
+process. The script requires an internet connection for downloading datasets and may require 
+access to a GPU for model training.
+
+Example:
+python3 auto_train.py --dataset-ids 12345 67890 --epochs 50 --batch-size 16
+
+Notes:
+- The script is designed to be run in an environment where YOLOv7 and its dependencies are installed.
+- Ensure that the dataset server's URL and file structure are compatible with the script's 
+  download logic.
+- The script uses multi-threading and subprocesses; ensure that the running environment 
+  supports these features.
+"""
+
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
